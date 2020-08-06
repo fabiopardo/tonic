@@ -1,0 +1,7 @@
+*.pyc
+*.py~
+.ipynb_checkpoints
+*.egg-info
+__pycache__/
+MUJOCO_LOG.TXT
+*DS_Store
