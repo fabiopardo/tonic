@@ -1,0 +1,8 @@
+agent: tonic.torch.agents.PPO()
+environment: tonic.environments.Custom("control_cassie")
+header: import tonic.torch
+name: PPO-X
+parallel: 1
+seed: 0
+sequential: 1
+trainer: tonic.Trainer()

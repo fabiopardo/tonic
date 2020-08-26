@@ -99,7 +99,16 @@ def play_control_suite(agent, environment):
 
         if environment.infos is not None:
             agent.test_update(**environment.infos)
-        return agent.test_step(environment.observations)
+
+        # I had an error for inconsistency between floats and doubles
+        # in the forward step. Not sure how to make it consistent with TF
+        import torch
+        observation = torch.from_numpy(environment.observations)
+        observations = observation.float()
+
+        #print(environment.observations)
+        #observations = environment.observations.float()
+        return agent.test_step(observations)
 
     # Launch the viewer with the wrapped environment and policy.
     viewer.launch(environment, policy)
@@ -178,7 +187,7 @@ def play(path, checkpoint, seed):
         agent.load(checkpoint_path)
 
     # Play with the agent in the environment.
-    if 'ControlSuite' in config.environment:
+    if 'ControlSuite' in config.environment or 'Custom' in config.environment:
         play_control_suite(agent, environment)
     else:
         if 'Bullet' in config.environment:

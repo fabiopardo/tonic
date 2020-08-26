@@ -2,9 +2,9 @@
 
 import gym.wrappers
 import numpy as np
+from dm_control import rl
 
 from tonic import environments
-
 
 def gym_environment(*args, **kwargs):
     '''Returns a wrapped Gym environment.'''
@@ -33,6 +33,29 @@ def control_suite_environment(*args, **kwargs):
         environment = ControlSuiteEnvironment(
             domain_name=domain, task_name=task, *args, **kwargs)
         return gym.wrappers.TimeLimit(environment, 1000)
+
+    return build_environment(_builder, *args, **kwargs)
+
+def custom_environment(*args, **kwargs):
+    def _builder(task, *args, **kwargs):
+
+        task_path = 'environments.custom_environments.' + task
+
+        prefix = eval(task_path)
+        _WALK_SPEED = 1
+
+        import inspect
+        for name, obj in inspect.getmembers(prefix):
+            if inspect.isclass(obj):
+                if obj.__name__ != 'Physics':
+                    task = eval('prefix.' + obj.__name__ + '(_WALK_SPEED)')
+
+        physics = prefix.Physics.from_xml_string(*prefix.get_model_and_assets())
+        env = rl.control.Environment(physics, task)
+
+        environment = ControlSuiteEnvironment(domain_name="", task_name="", custom=True, custom_env=env)
+
+        return gym.wrappers.TimeLimit(environment, 2000)
 
     return build_environment(_builder, *args, **kwargs)
 
@@ -86,13 +109,16 @@ class ControlSuiteEnvironment(gym.core.Env):
 
     def __init__(
         self, domain_name, task_name, task_kwargs=None, visualize_reward=True,
-        environment_kwargs=None
+        environment_kwargs=None, custom=False, custom_env=None
     ):
-        from dm_control import suite
-        self.environment = suite.load(
-            domain_name=domain_name, task_name=task_name,
-            task_kwargs=task_kwargs, visualize_reward=visualize_reward,
-            environment_kwargs=environment_kwargs)
+        if custom:
+            self.environment = custom_env
+        else:
+            from dm_control import suite
+            self.environment = suite.load(
+                domain_name=domain_name, task_name=task_name,
+                task_kwargs=task_kwargs, visualize_reward=visualize_reward,
+                environment_kwargs=environment_kwargs)
 
         # Create the observation space.
         observation_spec = self.environment.observation_spec()
@@ -140,3 +166,4 @@ class ControlSuiteEnvironment(gym.core.Env):
 Gym = gym_environment
 Bullet = bullet_environment
 ControlSuite = control_suite_environment
+Custom = custom_environment
