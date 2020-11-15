@@ -14,32 +14,10 @@ def default_model():
             encoder=models.ObservationActionEncoder(),
             torso=models.MLP((256, 256), torch.nn.ReLU),
             head=models.ValueHead()),
-        observation_normalizer=normalizers.MeanStd(),
-        target_coeff=0.005)
+        observation_normalizer=normalizers.MeanStd())
 
 
-def default_replay():
-    return replays.Buffer(
-        size=int(1e6), batch_iterations=50, batch_size=100,
-        discount_factor=0.98, steps_before_batches=5000,
-        steps_between_batches=50)
-
-
-def default_exploration():
-    return explorations.NormalActionNoise(scale=0.1, start_steps=10000)
-
-
-def default_actor_updater():
-    return updaters.DeterministicPolicyGradient(
-        optimizer=lambda params: torch.optim.Adam(params, lr=1e-3))
-
-
-def default_critic_updater():
-    return updaters.DeterministicQLearning(
-        optimizer=lambda params: torch.optim.Adam(params, lr=1e-3))
-
-
-class DDPG(agents.TorchAgent):
+class DDPG(agents.Agent):
     '''Deep Deterministic Policy Gradient.
     DDPG: https://arxiv.org/pdf/1509.02971.pdf
     '''
@@ -49,10 +27,12 @@ class DDPG(agents.TorchAgent):
         critic_updater=None
     ):
         self.model = model or default_model()
-        self.replay = replay or default_replay()
-        self.exploration = exploration or default_exploration()
-        self.actor_updater = actor_updater or default_actor_updater()
-        self.critic_updater = critic_updater or default_critic_updater()
+        self.replay = replay or replays.Buffer()
+        self.exploration = exploration or explorations.NormalActionNoise()
+        self.actor_updater = actor_updater or \
+            updaters.DeterministicPolicyGradient()
+        self.critic_updater = critic_updater or \
+            updaters.DeterministicQLearning()
 
     def initialize(self, observation_space, action_space, seed=None):
         super().initialize(seed=seed)
@@ -82,7 +62,7 @@ class DDPG(agents.TorchAgent):
         # Store the last transitions in the replay.
         self.replay.store(
             observations=self.last_observations, actions=self.last_actions,
-            next_observations=observations, rewards=rewards,
+            next_observations=observations, rewards=rewards, resets=resets,
             terminations=terminations)
 
         # Prepare to update the normalizers.
@@ -98,7 +78,7 @@ class DDPG(agents.TorchAgent):
         self.exploration.update(resets)
 
     def _greedy_actions(self, observations):
-        observations = torch.as_tensor(observations)
+        observations = torch.as_tensor(observations, dtype=torch.float32)
         with torch.no_grad():
             return self.model.actor(observations)
 
@@ -111,6 +91,7 @@ class DDPG(agents.TorchAgent):
 
         # Update both the actor and the critic multiple times.
         for batch in self.replay.get(*keys):
+            batch = {k: torch.as_tensor(v) for k, v in batch.items()}
             infos = self._update_actor_critic(**batch)
 
             for key in infos:

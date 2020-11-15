@@ -8,7 +8,7 @@ class Segment:
 
     def __init__(
         self, size=4096, batch_iterations=80, batch_size=None,
-        discount_factor=0.98, trace_decay=0.97
+        discount_factor=0.99, trace_decay=0.97
     ):
         self.max_size = size
         self.batch_iterations = batch_iterations
@@ -27,12 +27,10 @@ class Segment:
     def store(self, **kwargs):
         if self.buffers is None:
             self.num_workers = len(list(kwargs.values())[0])
-            assert self.max_size % self.num_workers == 0
-            self.max_size = self.max_size // self.num_workers
             self.buffers = {}
             for key, val in kwargs.items():
                 shape = (self.max_size,) + np.array(val).shape
-                self.buffers[key] = np.zeros(shape, 'float32')
+                self.buffers[key] = np.zeros(shape, np.float32)
         for key, val in kwargs.items():
             self.buffers[key][self.index] = val
         self.index += 1

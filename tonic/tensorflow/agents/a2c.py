@@ -17,23 +17,7 @@ def default_model():
         observation_normalizer=normalizers.MeanStd())
 
 
-def default_replay():
-    return replays.Segment(
-        size=4096, batch_iterations=80, batch_size=None, discount_factor=0.98,
-        trace_decay=0.97)
-
-
-def default_actor_updater():
-    return updaters.StochasticPolicyGradient(
-        optimizer=tf.keras.optimizers.Adam(lr=3e-4, epsilon=1e-8))
-
-
-def default_critic_updater():
-    return updaters.VRegression(
-        optimizer=tf.keras.optimizers.Adam(lr=1e-3, epsilon=1e-8))
-
-
-class A2C(agents.TensorFlowAgent):
+class A2C(agents.Agent):
     '''Advantage Actor Critic (aka Vanilla Policy Gradient).
     A3C: https://arxiv.org/pdf/1602.01783.pdf
     '''
@@ -42,9 +26,10 @@ class A2C(agents.TensorFlowAgent):
         self, model=None, replay=None, actor_updater=None, critic_updater=None
     ):
         self.model = model or default_model()
-        self.replay = replay or default_replay()
-        self.actor_updater = actor_updater or default_actor_updater()
-        self.critic_updater = critic_updater or default_critic_updater()
+        self.replay = replay or replays.Segment()
+        self.actor_updater = actor_updater or \
+            updaters.StochasticPolicyGradient()
+        self.critic_updater = critic_updater or updaters.VRegression()
 
     def initialize(self, observation_space, action_space, seed=None):
         super().initialize(seed=seed)

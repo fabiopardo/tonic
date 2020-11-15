@@ -1,6 +1,9 @@
 import torch
 
 
+FLOAT_EPSILON = 1e-8
+
+
 class SquashedMultivariateNormalDiag:
     def __init__(self, loc, scale):
         self._distribution = torch.distributions.normal.Normal(loc, scale)
@@ -33,14 +36,14 @@ class SquashedMultivariateNormalDiag:
 
 class DetachedScaleGaussianPolicyHead(torch.nn.Module):
     def __init__(
-        self, loc_activation=torch.nn.Tanh, loc_fn=None,
-        scale_init=0.6, scale_min=1e-4, scale_max=1.,
+        self, loc_activation=torch.nn.Tanh, loc_fn=None, log_scale_init=0.,
+        scale_min=1e-4, scale_max=1.,
         distribution=torch.distributions.normal.Normal
     ):
         super().__init__()
         self.loc_activation = loc_activation
         self.loc_fn = loc_fn
-        self.scale_init = scale_init
+        self.log_scale_init = log_scale_init
         self.scale_min = scale_min
         self.scale_max = scale_max
         self.distribution = distribution
@@ -50,14 +53,14 @@ class DetachedScaleGaussianPolicyHead(torch.nn.Module):
             torch.nn.Linear(input_size, action_size), self.loc_activation())
         if self.loc_fn:
             self.loc_layer.apply(self.loc_fn)
-        scale = [[self.scale_init] * action_size]
+        log_scale = [[self.log_scale_init] * action_size]
         self.log_scale = torch.nn.Parameter(
-            torch.log(torch.as_tensor(scale, dtype=torch.float32)))
+            torch.as_tensor(log_scale, dtype=torch.float32))
 
     def forward(self, inputs):
         loc = self.loc_layer(inputs)
         batch_size = inputs.shape[0]
-        scale = torch.exp(self.log_scale)
+        scale = torch.nn.functional.softplus(self.log_scale) + FLOAT_EPSILON
         scale = torch.clamp(scale, self.scale_min, self.scale_max)
         scale = scale.repeat(batch_size, 1)
         return self.distribution(loc, scale)

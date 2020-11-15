@@ -2,11 +2,11 @@ import numpy as np
 import torch
 
 
-EPS = 1e-8
+FLOAT_EPSILON = 1e-8
 
 
 def flat_concat(xs):
-    return torch.cat([torch.reshape(x, (-1,)) for x in xs], axis=0)
+    return torch.cat([torch.reshape(x, (-1,)) for x in xs], dim=0)
 
 
 def assign_params_from_flat(new_params, params):
@@ -21,8 +21,9 @@ def assign_params_from_flat(new_params, params):
 
 class ConjugateGradient:
     def __init__(
-        self, conjugate_gradient_steps, damping_coefficient,
-        constraint_threshold, backtrack_steps=None, backtrack_coefficient=None
+        self, conjugate_gradient_steps=10, damping_coefficient=0.1,
+        constraint_threshold=0.01, backtrack_steps=10,
+        backtrack_coefficient=0.8
     ):
         self.conjugate_gradient_steps = conjugate_gradient_steps
         self.damping_coefficient = damping_coefficient
@@ -55,7 +56,7 @@ class ConjugateGradient:
 
             for _ in range(self.conjugate_gradient_steps):
                 z = _hx(p).numpy()
-                alpha = r_dot_old / (np.dot(p, z) + EPS)
+                alpha = r_dot_old / (np.dot(p, z) + FLOAT_EPSILON)
                 x += alpha * p
                 r -= alpha * z
                 r_dot_new = np.dot(r, r)
@@ -84,14 +85,13 @@ class ConjugateGradient:
 
         conjugate_gradient = _cg(grad)
         if conjugate_gradient is None:
-            constraint = torch.as_tensor(0.)
-            loss = torch.as_tensor(0.)
-            steps = torch.as_tensor(0)
+            constraint = torch.as_tensor(0., dtype=torch.float32)
+            loss = torch.as_tensor(0., dtype=torch.float32)
+            steps = torch.as_tensor(0, dtype=torch.int32)
             return constraint, loss, steps
 
-        alpha = np.sqrt(
-            2 * self.constraint_threshold / (
-                np.dot(conjugate_gradient, _hx(conjugate_gradient)) + EPS))
+        alpha = np.sqrt(2 * self.constraint_threshold / np.dot(
+            conjugate_gradient, _hx(conjugate_gradient)) + FLOAT_EPSILON)
 
         if self.backtrack_steps is None or self.backtrack_coefficient is None:
             constraint, loss = _update(
@@ -112,4 +112,4 @@ class ConjugateGradient:
                     alpha, conjugate_gradient, 0, start_variables)
                 i = self.backtrack_steps
 
-        return constraint, loss, torch.as_tensor(i + 1)
+        return constraint, loss, torch.as_tensor(i + 1, dtype=torch.int32)

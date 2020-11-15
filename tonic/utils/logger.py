@@ -16,6 +16,7 @@ class Logger:
 
     def __init__(self, path=None, width=60, script_path=None, config=None):
         self.path = path or str(time.time())
+        self.log_file_path = os.path.join(self.path, 'log.csv')
 
         # Save the launch script.
         if script_path:
@@ -28,7 +29,7 @@ class Logger:
                 script_path = os.path.join(self.path, 'script.py')
                 with open(script_path, 'w') as config_file:
                     config_file.write(script)
-                log('Script file saved to {}'.format(script_path))
+                log(f'Script file saved to {script_path}')
 
         # Save the configuration.
         if config:
@@ -39,9 +40,9 @@ class Logger:
             config_path = os.path.join(self.path, 'config.yaml')
             with open(config_path, 'w') as config_file:
                 yaml.dump(config, config_file)
-            log('Config file saved to {}'.format(config_path))
+            log(f'Config file saved to {config_path}')
 
-        self.first_row = True
+        self.known_keys = set()
         self.stat_keys = set()
         self.epoch_dict = {}
         self.width = width
@@ -51,13 +52,12 @@ class Logger:
     def store(self, key, value, stats=False):
         '''Keeps named values during an epoch.'''
 
-        if self.first_row and stats:
-            self.stat_keys.add(key)
-
-        if key not in self.epoch_dict.keys():
-            self.epoch_dict[key] = [copy.copy(value)]
+        if key not in self.epoch_dict:
+            self.epoch_dict[key] = [value]
+            if stats:
+                self.stat_keys.add(key)
         else:
-            self.epoch_dict[key].append(copy.copy(value))
+            self.epoch_dict[key].append(value)
 
     def dump(self):
         '''Displays and saves the values at the end of an epoch.'''
@@ -65,19 +65,29 @@ class Logger:
         # Compute statistics if needed.
         keys = list(self.epoch_dict.keys())
         for key in keys:
+            values = self.epoch_dict[key]
             if key in self.stat_keys:
-                self.epoch_dict[key + '/mean'] = np.mean(self.epoch_dict[key])
-                self.epoch_dict[key + '/std'] = np.std(self.epoch_dict[key])
-                self.epoch_dict[key + '/min'] = np.min(self.epoch_dict[key])
-                self.epoch_dict[key + '/max'] = np.max(self.epoch_dict[key])
-                self.epoch_dict[key + '/size'] = len(self.epoch_dict[key])
+                self.epoch_dict[key + '/mean'] = np.mean(values)
+                self.epoch_dict[key + '/std'] = np.std(values)
+                self.epoch_dict[key + '/min'] = np.min(values)
+                self.epoch_dict[key + '/max'] = np.max(values)
+                self.epoch_dict[key + '/size'] = len(values)
                 del self.epoch_dict[key]
             else:
-                self.epoch_dict[key] = np.mean(self.epoch_dict[key])
+                self.epoch_dict[key] = np.mean(values)
 
-        # List the keys and prepare the display layout.
-        if self.first_row:
-            self.final_keys = list(sorted(self.epoch_dict.keys()))
+        # Check if new keys were added.
+        new_keys = [key for key in self.epoch_dict.keys()
+                    if key not in self.known_keys]
+        if new_keys:
+            first_row = len(self.known_keys) == 0
+            if not first_row:
+                print()
+                warning(f'Logging new keys {new_keys}')
+            # List the keys and prepare the display layout.
+            for key in new_keys:
+                self.known_keys.add(key)
+            self.final_keys = list(sorted(self.known_keys))
             self.console_formats = []
             known_keys = set()
             for key in self.final_keys:
@@ -99,13 +109,13 @@ class Logger:
                 val = self.epoch_dict.get(key)
                 str_type = str(type(val))
                 if 'tensorflow' in str_type:
-                    warning('Logging TensorFlow tensor {}'.format(key))
+                    warning(f'Logging TensorFlow tensor {key}')
                 elif 'torch' in str_type:
-                    warning('Logging Torch tensor {}'.format(key))
+                    warning(f'Logging Torch tensor {key}')
                 if np.issubdtype(type(val), np.floating):
-                    right = '{:8.3g}'.format(val)
+                    right = f'{val:8.3g}'
                 elif np.issubdtype(type(val), np.integer):
-                    right = '{:,}'.format(val)
+                    right = f'{val:,}'
                 else:
                     right = str(val)
                 spaces = ' ' * (self.width - len(left) - len(right))
@@ -116,24 +126,43 @@ class Logger:
         print()
 
         # Save the data to the log file
-        log_file_path = os.path.join(self.path, 'log.csv')
-        if self.first_row:
-            vals = [self.epoch_dict[key] for key in self.final_keys]
-            log('Logging data to {}'.format(log_file_path))
-            try:
-                os.makedirs(self.path, exist_ok=True)
-            except Exception:
-                pass
-            with open(log_file_path, 'w') as file:
-                file.write(','.join(self.final_keys) + '\n')
-                file.write(','.join(map(str, vals)) + '\n')
+        vals = [self.epoch_dict.get(key) for key in self.final_keys]
+        if new_keys:
+            if first_row:
+                log(f'Logging data to {self.log_file_path}')
+                try:
+                    os.makedirs(self.path, exist_ok=True)
+                except Exception:
+                    pass
+                with open(self.log_file_path, 'w') as file:
+                    file.write(','.join(self.final_keys) + '\n')
+                    file.write(','.join(map(str, vals)) + '\n')
+            else:
+                with open(self.log_file_path, 'r') as file:
+                    lines = file.read().splitlines()
+                old_keys = lines[0].split(',')
+                old_lines = [line.split(',') for line in lines[1:]]
+                new_indices = []
+                j = 0
+                for i, key in enumerate(self.final_keys):
+                    if key == old_keys[j]:
+                        j += 1
+                    else:
+                        new_indices.append(i)
+                assert j == len(old_keys)
+                for line in old_lines:
+                    for i in new_indices:
+                        line.insert(i, 'None')
+                with open(self.log_file_path, 'w') as file:
+                    file.write(','.join(self.final_keys) + '\n')
+                    for line in old_lines:
+                        file.write(','.join(line) + '\n')
+                    file.write(','.join(map(str, vals)) + '\n')
         else:
-            vals = [self.epoch_dict.get(key) for key in self.final_keys]
-            with open(log_file_path, 'a') as file:
+            with open(self.log_file_path, 'a') as file:
                 file.write(','.join(map(str, vals)) + '\n')
 
         self.epoch_dict.clear()
-        self.first_row = False
         self.last_epoch_progress = None
         self.last_epoch_time = time.time()
 
@@ -157,8 +186,7 @@ class Logger:
             total_rem_secs = max(total_rem_steps * seconds_per_step, 0)
             total_rem_secs = datetime.timedelta(seconds=total_rem_secs)
             total_rem_secs = str(total_rem_secs)[:-7]
-            msg = 'Time left:  epoch {}  total {}'.format(
-                epoch_rem_secs, total_rem_secs)
+            msg = f'Time left:  epoch {epoch_rem_secs}  total {total_rem_secs}'
             msg = msg.center(self.width)
             print(termcolor.colored(
                 '\r' + msg[:epoch_progress], color, on_color), end='')

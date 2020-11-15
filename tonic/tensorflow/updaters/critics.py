@@ -1,11 +1,13 @@
 import tensorflow as tf
 
+from tonic.tensorflow import updaters
+
 
 class VRegression:
     def __init__(self, loss=None, optimizer=None, gradient_clip=0):
         self.loss = loss or tf.keras.losses.MeanSquaredError()
-        self.optimizer = optimizer or tf.keras.optimizers.Adam(
-            lr=1e-3, epsilon=1e-8)
+        self.optimizer = optimizer or \
+            tf.keras.optimizers.Adam(lr=1e-3, epsilon=1e-8)
         self.gradient_clip = gradient_clip
 
     def initialize(self, model):
@@ -30,8 +32,8 @@ class VRegression:
 class QRegression:
     def __init__(self, loss=None, optimizer=None, gradient_clip=0):
         self.loss = loss or tf.keras.losses.MeanSquaredError()
-        self.optimizer = optimizer or tf.keras.optimizers.Adam(
-            lr=1e-3, epsilon=1e-8)
+        self.optimizer = optimizer or \
+            tf.keras.optimizers.Adam(lr=1e-3, epsilon=1e-8)
         self.gradient_clip = gradient_clip
 
     def initialize(self, model):
@@ -56,8 +58,8 @@ class QRegression:
 class DeterministicQLearning:
     def __init__(self, loss=None, optimizer=None, gradient_clip=0):
         self.loss = loss or tf.keras.losses.MeanSquaredError()
-        self.optimizer = optimizer or tf.keras.optimizers.Adam(
-            lr=1e-3, epsilon=1e-8)
+        self.optimizer = optimizer or \
+            tf.keras.optimizers.Adam(lr=1e-3, epsilon=1e-8)
         self.gradient_clip = gradient_clip
 
     def initialize(self, model):
@@ -85,6 +87,43 @@ class DeterministicQLearning:
         return dict(loss=loss, q=values)
 
 
+class DistributionalDeterministicQLearning:
+    def __init__(self, optimizer=None, gradient_clip=0):
+        self.optimizer = optimizer or \
+            tf.keras.optimizers.Adam(lr=1e-3, epsilon=1e-8)
+        self.gradient_clip = gradient_clip
+
+    def initialize(self, model):
+        self.model = model
+        self.variables = self.model.critic.trainable_variables
+
+    @tf.function
+    def __call__(
+        self, observations, actions, next_observations, rewards, discounts
+    ):
+        next_actions = self.model.target_actor(next_observations)
+        next_value_distributions = self.model.target_critic(
+            next_observations, next_actions)
+
+        values = next_value_distributions.values
+        returns = rewards[:, None] + discounts[:, None] * values
+        targets = next_value_distributions.project(returns)
+
+        with tf.GradientTape() as tape:
+            value_distributions = self.model.critic(observations, actions)
+            losses = tf.nn.softmax_cross_entropy_with_logits(
+                logits=value_distributions.logits, labels=targets)
+            loss = tf.reduce_mean(losses)
+
+        gradients = tape.gradient(loss, self.variables)
+        if self.gradient_clip > 0:
+            gradients = tf.clip_by_global_norm(
+                gradients, self.gradient_clip)[0]
+        self.optimizer.apply_gradients(zip(gradients, self.variables))
+
+        return dict(loss=loss)
+
+
 class TargetActionNoise:
     def __init__(self, scale=0.2, clip=0.5):
         self.scale = scale
@@ -103,10 +142,10 @@ class TwinCriticDeterministicQLearning:
         gradient_clip=0
     ):
         self.loss = loss or tf.keras.losses.MeanSquaredError()
-        self.optimizer = optimizer or tf.keras.optimizers.Adam(
-            lr=1e-3, epsilon=1e-8)
-        self.target_action_noise = target_action_noise or TargetActionNoise(
-            scale=0.2, clip=0.5)
+        self.optimizer = optimizer or \
+            tf.keras.optimizers.Adam(lr=1e-3, epsilon=1e-8)
+        self.target_action_noise = target_action_noise or \
+            TargetActionNoise(scale=0.2, clip=0.5)
         self.gradient_clip = gradient_clip
 
     def initialize(self, model):
@@ -149,8 +188,8 @@ class TwinCriticSoftQLearning:
         self, loss=None, optimizer=None, entropy_coeff=0.2, gradient_clip=0
     ):
         self.loss = loss or tf.keras.losses.MeanSquaredError()
-        self.optimizer = optimizer or tf.keras.optimizers.Adam(
-            lr=1e-3, epsilon=1e-8)
+        self.optimizer = optimizer or \
+            tf.keras.optimizers.Adam(lr=1e-3, epsilon=1e-8)
         self.entropy_coeff = entropy_coeff
         self.gradient_clip = gradient_clip
 
@@ -193,3 +232,45 @@ class TwinCriticSoftQLearning:
         self.optimizer.apply_gradients(zip(gradients, self.variables))
 
         return dict(loss=loss, q1=values_1, q2=values_2)
+
+
+class ExpectedSARSA:
+    def __init__(
+        self, num_samples=20, loss=None, optimizer=None, gradient_clip=0
+    ):
+        self.num_samples = num_samples
+        self.loss = loss or tf.keras.losses.MeanSquaredError()
+        self.optimizer = optimizer or \
+            tf.keras.optimizers.Adam(lr=1e-3, epsilon=1e-8)
+        self.gradient_clip = gradient_clip
+
+    def initialize(self, model):
+        self.model = model
+        self.variables = self.model.critic.trainable_variables
+
+    @tf.function
+    def __call__(
+        self, observations, actions, next_observations, rewards, discounts
+    ):
+        # Approximate the expected next values.
+        next_target_distributions = self.model.target_actor(next_observations)
+        next_actions = next_target_distributions.sample(self.num_samples)
+        next_actions = updaters.merge_first_two_dims(next_actions)
+        next_observations = updaters.tile(next_observations, self.num_samples)
+        next_observations = updaters.merge_first_two_dims(next_observations)
+        next_values = self.model.target_critic(next_observations, next_actions)
+        next_values = tf.reshape(next_values, (self.num_samples, -1))
+        next_values = tf.reduce_mean(next_values, axis=0)
+        returns = rewards + discounts * next_values
+
+        with tf.GradientTape() as tape:
+            values = self.model.critic(observations, actions)
+            loss = self.loss(returns, values)
+
+        gradients = tape.gradient(loss, self.variables)
+        if self.gradient_clip > 0:
+            gradients = tf.clip_by_global_norm(
+                gradients, self.gradient_clip)[0]
+        self.optimizer.apply_gradients(zip(gradients, self.variables))
+
+        return dict(loss=loss, q=values)

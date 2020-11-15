@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 
-EPS = 1e-8
+FLOAT_EPSILON = 1e-8
 
 
 def flat_concat(xs):
@@ -21,8 +21,9 @@ def assign_params_from_flat(new_params, params):
 
 class ConjugateGradient:
     def __init__(
-        self, conjugate_gradient_steps, damping_coefficient,
-        constraint_threshold, backtrack_steps=None, backtrack_coefficient=None
+        self, conjugate_gradient_steps=10, damping_coefficient=0.1,
+        constraint_threshold=0.01, backtrack_steps=10,
+        backtrack_coefficient=0.8
     ):
         self.conjugate_gradient_steps = conjugate_gradient_steps
         self.damping_coefficient = damping_coefficient
@@ -55,7 +56,7 @@ class ConjugateGradient:
 
             for _ in range(self.conjugate_gradient_steps):
                 z = _hx(p).numpy()
-                alpha = r_dot_old / (np.dot(p, z) + EPS)
+                alpha = r_dot_old / (np.dot(p, z) + FLOAT_EPSILON)
                 x += alpha * p
                 r -= alpha * z
                 r_dot_new = np.dot(r, r)
@@ -85,11 +86,9 @@ class ConjugateGradient:
             steps = tf.convert_to_tensor(0)
             return constraint, loss, steps
 
-        alpha = tf.convert_to_tensor(
-            np.sqrt(2 * self.constraint_threshold /
-                    (np.dot(conjugate_gradient,
-                     _hx(conjugate_gradient)) + EPS)),
-            tf.float32)
+        alpha = np.sqrt(2 * self.constraint_threshold / np.dot(
+            conjugate_gradient, _hx(conjugate_gradient)) + FLOAT_EPSILON)
+        alpha = tf.convert_to_tensor(alpha, tf.float32)
 
         if self.backtrack_steps is None or self.backtrack_coefficient is None:
             constraint, loss = _update(
@@ -111,4 +110,4 @@ class ConjugateGradient:
                     alpha, conjugate_gradient, step, start_variables)
                 i = self.backtrack_steps
 
-        return constraint, loss, tf.convert_to_tensor(i + 1)
+        return constraint, loss, tf.convert_to_tensor(i + 1, dtype=tf.int32)

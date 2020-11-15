@@ -17,23 +17,7 @@ def default_model():
         observation_normalizer=normalizers.MeanStd())
 
 
-def default_replay():
-    return replays.Segment(
-        size=4096, batch_iterations=80, batch_size=None, discount_factor=0.98,
-        trace_decay=0.97)
-
-
-def default_actor_updater():
-    return updaters.StochasticPolicyGradient(
-        optimizer=lambda params: torch.optim.Adam(params, lr=3e-4))
-
-
-def default_critic_updater():
-    return updaters.VRegression(
-        optimizer=lambda params: torch.optim.Adam(params, lr=1e-3))
-
-
-class A2C(agents.TorchAgent):
+class A2C(agents.Agent):
     '''Advantage Actor Critic (aka Vanilla Policy Gradient).
     A3C: https://arxiv.org/pdf/1602.01783.pdf
     '''
@@ -42,9 +26,10 @@ class A2C(agents.TorchAgent):
         self, model=None, replay=None, actor_updater=None, critic_updater=None
     ):
         self.model = model or default_model()
-        self.replay = replay or default_replay()
-        self.actor_updater = actor_updater or default_actor_updater()
-        self.critic_updater = critic_updater or default_critic_updater()
+        self.replay = replay or replays.Segment()
+        self.actor_updater = actor_updater or \
+            updaters.StochasticPolicyGradient()
+        self.critic_updater = critic_updater or updaters.VRegression()
 
     def initialize(self, observation_space, action_space, seed=None):
         super().initialize(seed=seed)
@@ -88,7 +73,7 @@ class A2C(agents.TorchAgent):
             self._update()
 
     def _step(self, observations):
-        observations = torch.as_tensor(observations)
+        observations = torch.as_tensor(observations, dtype=torch.float32)
         with torch.no_grad():
             distributions = self.model.actor(observations)
             if hasattr(distributions, 'sample_with_log_prob'):
@@ -96,16 +81,18 @@ class A2C(agents.TorchAgent):
             else:
                 actions = distributions.sample()
                 log_probs = distributions.log_prob(actions)
-            log_probs = log_probs.sum(axis=-1)
+            log_probs = log_probs.sum(dim=-1)
         return actions, log_probs
 
     def _test_step(self, observations):
-        observations = torch.as_tensor(observations)
-        return self.model.actor(observations).sample()
+        observations = torch.as_tensor(observations, dtype=torch.float32)
+        with torch.no_grad():
+            return self.model.actor(observations).sample()
 
     def _evaluate(self, observations, next_observations):
-        observations = torch.as_tensor(observations)
-        next_observations = torch.as_tensor(next_observations)
+        observations = torch.as_tensor(observations, dtype=torch.float32)
+        next_observations = torch.as_tensor(
+            next_observations, dtype=torch.float32)
         with torch.no_grad():
             values = self.model.critic(observations)
             next_values = self.model.critic(next_observations)
@@ -121,12 +108,14 @@ class A2C(agents.TorchAgent):
         # Update the actor once.
         keys = 'observations', 'actions', 'advantages', 'log_probs'
         batch = self.replay.get_full(*keys)
+        batch = {k: torch.as_tensor(v) for k, v in batch.items()}
         infos = self.actor_updater(**batch)
         for k, v in infos.items():
             logger.store('actor/' + k, v.numpy())
 
         # Update the critic multiple times.
         for batch in self.replay.get('observations', 'returns'):
+            batch = {k: torch.as_tensor(v) for k, v in batch.items()}
             infos = self.critic_updater(**batch)
             for k, v in infos.items():
                 logger.store('critic/' + k, v.numpy())

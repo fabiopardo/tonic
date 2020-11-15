@@ -9,11 +9,11 @@ class Return(torch.nn.Module):
         self.coefficient = 1 / (1 - discount_factor)
         self.min_reward = np.float32(-1)
         self.max_reward = np.float32(1)
-        self._low = torch.nn.Parameter(
-            torch.as_tensor(self.coefficient * self.min_reward),
+        self._low = torch.nn.Parameter(torch.as_tensor(
+            self.coefficient * self.min_reward, dtype=torch.float32),
             requires_grad=False)
-        self._high = torch.nn.Parameter(
-            torch.as_tensor(self.coefficient * self.max_reward),
+        self._high = torch.nn.Parameter(torch.as_tensor(
+            self.coefficient * self.max_reward, dtype=torch.float32),
             requires_grad=False)
 
     def forward(self, val):
@@ -31,5 +31,7 @@ class Return(torch.nn.Module):
         self._update(self.min_reward, self.max_reward)
 
     def _update(self, min_reward, max_reward):
-        self._low.data.copy_(torch.as_tensor(self.coefficient * min_reward))
-        self._high.data.copy_(torch.as_tensor(self.coefficient * max_reward))
+        self._low.data.copy_(torch.as_tensor(
+            self.coefficient * min_reward, dtype=torch.float32))
+        self._high.data.copy_(torch.as_tensor(
+            self.coefficient * max_reward, dtype=torch.float32))

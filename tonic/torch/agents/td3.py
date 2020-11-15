@@ -14,13 +14,7 @@ def default_model():
             encoder=models.ObservationActionEncoder(),
             torso=models.MLP((256, 256), torch.nn.ReLU),
             head=models.ValueHead()),
-        observation_normalizer=normalizers.MeanStd(),
-        target_coeff=0.005)
-
-
-def default_critic_updater():
-    return updaters.TwinCriticDeterministicQLearning(
-        optimizer=lambda params: torch.optim.Adam(params, lr=1e-3))
+        observation_normalizer=normalizers.MeanStd())
 
 
 class TD3(agents.DDPG):
@@ -33,7 +27,8 @@ class TD3(agents.DDPG):
         critic_updater=None, delay_steps=2
     ):
         model = model or default_model()
-        critic_updater = critic_updater or default_critic_updater()
+        critic_updater = critic_updater or \
+            updaters.TwinCriticDeterministicQLearning()
         super().__init__(
             model=model, replay=replay, exploration=exploration,
             actor_updater=actor_updater, critic_updater=critic_updater)
@@ -44,6 +39,7 @@ class TD3(agents.DDPG):
         keys = ('observations', 'actions', 'next_observations', 'rewards',
                 'discounts')
         for i, batch in enumerate(self.replay.get(*keys)):
+            batch = {k: torch.as_tensor(v) for k, v in batch.items()}
             if (i + 1) % self.delay_steps == 0:
                 infos = self._update_actor_critic(**batch)
             else:

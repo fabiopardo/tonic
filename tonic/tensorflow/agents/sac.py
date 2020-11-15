@@ -16,24 +16,7 @@ def default_model():
             encoder=models.ObservationActionEncoder(),
             torso=models.MLP((256, 256), 'relu'),
             head=models.ValueHead()),
-        observation_normalizer=normalizers.MeanStd(),
-        target_coeff=0.005)
-
-
-def default_exploration():
-    return explorations.NoActionNoise(start_steps=10000)
-
-
-def default_actor_updater():
-    return updaters.TwinCriticSoftDeterministicPolicyGradient(
-        optimizer=tf.keras.optimizers.Adam(lr=1e-3, epsilon=1e-8),
-        entropy_coeff=0.2)
-
-
-def default_critic_updater():
-    return updaters.TwinCriticSoftQLearning(
-        optimizer=tf.keras.optimizers.Adam(lr=1e-3, epsilon=1e-8),
-        entropy_coeff=0.2)
+        observation_normalizer=normalizers.MeanStd())
 
 
 class SAC(agents.DDPG):
@@ -46,9 +29,10 @@ class SAC(agents.DDPG):
         critic_updater=None
     ):
         model = model or default_model()
-        exploration = exploration or default_exploration()
-        actor_updater = actor_updater or default_actor_updater()
-        critic_updater = critic_updater or default_critic_updater()
+        exploration = exploration or explorations.NoActionNoise()
+        actor_updater = actor_updater or \
+            updaters.TwinCriticSoftDeterministicPolicyGradient()
+        critic_updater = critic_updater or updaters.TwinCriticSoftQLearning()
         super().__init__(
             model=model, replay=replay, exploration=exploration,
             actor_updater=actor_updater, critic_updater=critic_updater)

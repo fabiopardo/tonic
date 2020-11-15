@@ -45,8 +45,13 @@ class Trainer:
         scores = np.zeros(len(observations))
         lengths = np.zeros(len(observations), int)
         steps, epoch_steps, epochs, episodes = 0, 0, 0, 0
+        max_steps = np.ceil(self.max_steps / num_workers)
+        if self.save_steps:
+            save_steps = np.ceil(self.save_steps / num_workers)
+        else:
+            save_steps = None
 
-        while steps < self.max_steps:
+        while True:
             # Select actions.
             actions = self.agent.step(observations)
             assert not np.isnan(actions.sum())
@@ -58,12 +63,12 @@ class Trainer:
 
             scores += infos['rewards']
             lengths += 1
-            steps += num_workers
-            epoch_steps += num_workers
+            steps += 1
+            epoch_steps += 1
 
             # Show the progress bar.
             if self.show_progress:
-                logger.show_progress(steps, self.epoch_steps, self.max_steps)
+                logger.show_progress(steps, self.epoch_steps, max_steps)
 
             # Check the finished episodes.
             for i in range(num_workers):
@@ -76,7 +81,7 @@ class Trainer:
                     episodes += 1
 
             # End of the epoch.
-            if epoch_steps >= self.epoch_steps:
+            if epoch_steps == self.epoch_steps:
                 # Evaluate the agent on the test environment.
                 if self.test_environment:
                     self._test()
@@ -90,18 +95,24 @@ class Trainer:
                 logger.store('train/epochs', epochs)
                 logger.store('train/seconds', current_time - start_time)
                 logger.store('train/epoch_seconds', epoch_time)
-                logger.store('train/epoch_steps', epoch_steps)
-                logger.store('train/steps', steps)
-                logger.store('train/steps_per_second', sps)
+                logger.store('train/epoch_steps', epoch_steps * num_workers)
+                logger.store('train/steps', steps * num_workers)
+                logger.store('train/steps_per_second', sps * num_workers)
                 logger.dump()
                 last_epoch_time = time.time()
                 epoch_steps = 0
 
+            # End of training.
+            stop_training = steps >= max_steps
+
             # Save a checkpoint.
-            if self.save_steps and steps % self.save_steps == 0:
-                save_name = 'checkpoints/step_{}'.format(steps)
+            if stop_training or (save_steps and steps % save_steps == 0):
+                save_name = f'checkpoints/step_{steps * num_workers}'
                 save_path = os.path.join(logger.get_path(), save_name)
                 self.agent.save(save_path)
+
+            if stop_training:
+                break
 
     def _test(self):
         '''Tests the agent on the test environment.'''

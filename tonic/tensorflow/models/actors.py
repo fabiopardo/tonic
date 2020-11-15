@@ -4,6 +4,9 @@ import tensorflow_probability as tfp
 from tonic.tensorflow import models
 
 
+FLOAT_EPSILON = 1e-8
+
+
 class SquashedMultivariateNormalDiag:
     def __init__(self, loc, scale):
         self._distribution = tfp.distributions.MultivariateNormalDiag(
@@ -33,7 +36,7 @@ class SquashedMultivariateNormalDiag:
 
 class DetachedScaleGaussianPolicyHead(tf.keras.Model):
     def __init__(
-        self, loc_activation='tanh', dense_loc_kwargs=None, scale_init=0.6,
+        self, loc_activation='tanh', dense_loc_kwargs=None, log_scale_init=0.,
         scale_min=1e-4, scale_max=1.,
         distribution=tfp.distributions.MultivariateNormalDiag
     ):
@@ -42,7 +45,7 @@ class DetachedScaleGaussianPolicyHead(tf.keras.Model):
         if dense_loc_kwargs is None:
             dense_loc_kwargs = models.default_dense_kwargs()
         self.dense_loc_kwargs = dense_loc_kwargs
-        self.scale_init = scale_init
+        self.log_scale_init = log_scale_init
         self.scale_min = scale_min
         self.scale_max = scale_max
         self.distribution = distribution
@@ -50,13 +53,13 @@ class DetachedScaleGaussianPolicyHead(tf.keras.Model):
     def initialize(self, action_size):
         self.loc_layer = tf.keras.layers.Dense(
             action_size, self.loc_activation, **self.dense_loc_kwargs)
-        scale = [[self.scale_init] * action_size]
-        self.log_scale = tf.Variable(tf.math.log(scale), dtype=tf.float32)
+        log_scale = [[self.log_scale_init] * action_size]
+        self.log_scale = tf.Variable(log_scale, dtype=tf.float32)
 
     def call(self, inputs):
         loc = self.loc_layer(inputs)
         batch_size = tf.shape(inputs)[0]
-        scale = tf.exp(self.log_scale)
+        scale = tf.math.softplus(self.log_scale) + FLOAT_EPSILON
         scale = tf.clip_by_value(scale, self.scale_min, self.scale_max)
         scale = tf.tile(scale, (batch_size, 1))
         return self.distribution(loc, scale)

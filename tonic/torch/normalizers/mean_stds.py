@@ -20,16 +20,16 @@ class MeanStd(torch.nn.Module):
         if isinstance(self.mean, (int, float)):
             self.mean = np.full(shape, self.mean, np.float32)
         else:
-            self.mean = np.array(self.mean)
+            self.mean = np.array(self.mean, np.float32)
         if isinstance(self.std, (int, float)):
             self.std = np.full(shape, self.std, np.float32)
         else:
-            self.std = np.array(self.std)
+            self.std = np.array(self.std, np.float32)
         self.mean_sq = np.square(self.mean)
-        self._mean = torch.nn.Parameter(
-            torch.as_tensor(self.mean), requires_grad=False)
-        self._std = torch.nn.Parameter(
-            torch.as_tensor(self.std), requires_grad=False)
+        self._mean = torch.nn.Parameter(torch.as_tensor(
+            self.mean, dtype=torch.float32), requires_grad=False)
+        self._std = torch.nn.Parameter(torch.as_tensor(
+            self.std, dtype=torch.float32), requires_grad=False)
 
     def forward(self, val):
         with torch.no_grad():
@@ -70,5 +70,5 @@ class MeanStd(torch.nn.Module):
         return std
 
     def _update(self, mean, std):
-        self._mean.data.copy_(torch.as_tensor(self.mean))
-        self._std.data.copy_(torch.as_tensor(self.std))
+        self._mean.data.copy_(torch.as_tensor(self.mean, dtype=torch.float32))
+        self._std.data.copy_(torch.as_tensor(self.std, dtype=torch.float32))

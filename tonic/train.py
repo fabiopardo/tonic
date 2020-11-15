@@ -7,7 +7,8 @@ import tonic
 
 
 def train(
-    header, agent, environment, trainer, parallel, sequential, seed, name
+    header, agent, environment, trainer, before_training, after_training,
+    parallel, sequential, seed, name
 ):
     '''Trains an agent on an environment.'''
 
@@ -28,9 +29,6 @@ def train(
     test_environment = tonic.environments.distribute(
         lambda: eval(_environment))
 
-    # Build the trainer.
-    trainer = eval(trainer)
-
     # Choose a name for the experiment.
     if hasattr(test_environment, 'name'):
         environment_name = test_environment.name
@@ -41,16 +39,29 @@ def train(
             name = agent.name
         else:
             name = agent.__class__.__name__
+        if parallel != 1 or sequential != 1:
+            name += f'-{parallel}x{sequential}'
 
     # Initialize the logger to save data to the path environment/name/seed.
     path = os.path.join(environment_name, name, str(seed))
     tonic.logger.initialize(path, script_path=__file__, config=args)
 
-    # Train.
+    # Build the trainer.
+    trainer = eval(trainer)
     trainer.initialize(
         agent=agent, environment=environment,
         test_environment=test_environment, seed=seed)
+
+    # Run some code before training.
+    if before_training:
+        exec(before_training)
+
+    # Train.
     trainer.run()
+
+    # Run some code after training.
+    if after_training:
+        exec(after_training)
 
 
 if __name__ == '__main__':
@@ -60,6 +71,8 @@ if __name__ == '__main__':
     parser.add_argument('--agent', required=True)
     parser.add_argument('--environment', '--env', required=True)
     parser.add_argument('--trainer', default='tonic.Trainer()')
+    parser.add_argument('--before_training')
+    parser.add_argument('--after_training')
     parser.add_argument('--parallel', type=int, default=1)
     parser.add_argument('--sequential', type=int, default=1)
     parser.add_argument('--seed', type=int)

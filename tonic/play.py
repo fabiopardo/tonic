@@ -19,6 +19,8 @@ def play_gym(agent, environment):
 
     score = 0
     length = 0
+    min_reward = float('inf')
+    max_reward = -float('inf')
     episodes = 0
 
     while True:
@@ -27,7 +29,10 @@ def play_gym(agent, environment):
         agent.test_update(**infos)
         environment.render()
 
-        score += infos['rewards'][0]
+        reward = infos['rewards'][0]
+        score += reward
+        min_reward = min(min_reward, reward)
+        max_reward = max(max_reward, reward)
         length += 1
 
         if infos['resets'][0]:
@@ -37,6 +42,8 @@ def play_gym(agent, environment):
             print('Episodes:', episodes)
             print('Score:', score)
             print('Length:', length)
+            print('Min reward:', min_reward)
+            print('Max reward:', max_reward)
 
             score = 0
             length = 0
@@ -108,7 +115,7 @@ def play_control_suite(agent, environment):
 def play(path, checkpoint, seed):
     '''Reloads an agent and an environment from a previous experiment.'''
 
-    tonic.logger.log('Loading experiment from {}'.format(path))
+    tonic.logger.log(f'Loading experiment from {path}')
 
     # Use no checkpoint, the agent is freshly created.
     if checkpoint == 'none':
@@ -118,7 +125,7 @@ def play(path, checkpoint, seed):
     else:
         checkpoint_path = os.path.join(path, 'checkpoints')
         if not os.path.isdir(checkpoint_path):
-            tonic.logger.error('{} is not a directory'.format(checkpoint_path))
+            tonic.logger.error(f'{checkpoint_path} is not a directory')
             checkpoint_path = None
 
         # List all the checkpoints.
@@ -133,22 +140,21 @@ def play(path, checkpoint, seed):
             if checkpoint == 'last':
                 checkpoint_id = max(checkpoint_ids)
                 checkpoint_path = os.path.join(
-                    checkpoint_path, 'step_{}'.format(checkpoint_id))
+                    checkpoint_path, f'step_{checkpoint_id}')
 
             # Use the specified checkpoint.
             else:
                 checkpoint_id = int(checkpoint)
                 if checkpoint_id in checkpoint_ids:
                     checkpoint_path = os.path.join(
-                        checkpoint_path, 'step_{}'.format(checkpoint_id))
+                        checkpoint_path, f'step_{checkpoint_id}')
                 else:
-                    tonic.logger.error('Checkpoint {} not found in {}'.format(
-                        checkpoint_id, checkpoint_path))
+                    tonic.logger.error(f'Checkpoint {checkpoint_id} '
+                                       f'not found in {checkpoint_path}')
                     checkpoint_path = None
 
         else:
-            tonic.logger.error('No checkpoint found in {}'.format(
-                checkpoint_path))
+            tonic.logger.error(f'No checkpoint found in {checkpoint_path}')
             checkpoint_path = None
 
     # Load the experiment configuration.

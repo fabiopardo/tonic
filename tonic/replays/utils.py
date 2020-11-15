@@ -6,6 +6,7 @@ def lambda_returns(
     trace_decay
 ):
     '''Function used to calculate lambda-returns on parallel buffers.'''
+
     returns = np.zeros_like(values)
     last_returns = next_values[-1]
     for t in reversed(range(len(rewards))):

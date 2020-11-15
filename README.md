@@ -65,7 +65,7 @@ pip install tensorflow torch
 
 Use TensorFlow or PyTorch to train an agent, for example using:
 ```bash
-python -m tonic.train \
+python3 -m tonic.train \
 --header 'import tonic.torch' \
 --agent 'tonic.torch.agents.PPO()' \
 --environment 'tonic.environments.Gym("BipedalWalker-v3")' \
@@ -78,7 +78,7 @@ a very powerful feature allowing to configure agents and environments with
 various arguments or even load custom modules without adding them to the
 library. For example:
 ```bash
-python -m tonic.train \
+python3 -m tonic.train \
 --header "import sys; sys.path.append('path/to/custom'); from custom import CustomAgent" \
 --agent "CustomAgent()" \
 --environment "tonic.environments.Bullet('AntBulletEnv-v0')" \
@@ -91,25 +91,21 @@ observations to keep the MDP Markovian. See the
 [Time Limits in RL](https://arxiv.org/pdf/1712.00378.pdf) paper for more
 details. For example:
 ```bash
-python -m tonic.train \                                                                                  ⏎
+python3 -m tonic.train \                                                                                  ⏎
 --header 'import tonic.tensorflow' \
 --agent 'tonic.tensorflow.agents.PPO()' \
 --environment 'tonic.environments.Gym("Reacher-v2", terminal_timeouts=True, time_feature=True)' \
---name PPO-time-aware \
 --seed 0
 ```
 
 Distributed training can be used to accelerate learning. In Tonic, groups of
 sequential workers can be launched in parallel processes using for example:
 ```bash
-python -m tonic.train \
+python3 -m tonic.train \
 --header "import tonic.tensorflow" \
---agent "tonic.tensorflow.agents.PPO(replay=tonic.replays.Segment(size=10000, batch_size=2000, batch_iterations=30))" \
+--agent "tonic.tensorflow.agents.PPO()" \
 --environment "tonic.environments.Gym('HalfCheetah-v3')" \
---trainer "tonic.Trainer(epoch_steps=100000)" \
---parallel 10 \
---sequential 100 \
---name PPO-10x100 \
+--parallel 10 --sequential 100 \
 --seed 0
 ```
 
@@ -120,23 +116,20 @@ saved in `environment/agent/seed/`.
 
 Result can be plotted with:
 ```bash
-python -m tonic.plot --path BipedalWalker-v3/ --show True --baselines all
+python3 -m tonic.plot --path BipedalWalker-v3/ --baselines all
 ```
 Regular expressions like `BipedalWalker-v3/PPO-X/0`,
 `BipedalWalker-v3/{PPO*,DDPG*}` or `*Bullet*` can be used to point to different
 sets of logs.
-If the `--show` argument is not used, a window does not appear and results are
-only saved in pdf or png files.
 The `--baselines` argument can be used to load logs from the benchmark. For
 example `--baselines all` uses all agents while `--baselines A2C PPO TRPO` will
 use logs from A2C, PPO and TRPO.
 
 Different headers can be used for the x and y axes, for example to compare the
 gain in wall clock time of using distributed training, replace `--parallel 10`
-with `--parallel 5` and `--name PPO-10x100` with `--name PPO-5x100` in the
-last training example and plot the result with:
+with `--parallel 5` in the last training example and plot the result with:
 ```bash
-python -m tonic.plot --path HalfCheetah-v3/ --show True --x_axis train/seconds --x_label Seconds
+python3 -m tonic.plot --path HalfCheetah-v3/ --x_axis train/seconds --x_label Seconds
 ```
 
 ## Play with trained models
@@ -144,7 +137,7 @@ python -m tonic.plot --path HalfCheetah-v3/ --show True --x_axis train/seconds -
 After some training time, checkpoints are generated and can be used to play
 with the trained agent:
 ```bash
-python -m tonic.play --path BipedalWalker-v3/PPO-X/0
+python3 -m tonic.play --path BipedalWalker-v3/PPO-X/0
 ```
 
 Environments are rendered using the appropriate framework. For example, when
@@ -164,7 +157,7 @@ git clone https://github.com/fabiopardo/tonic_data.git
 The best seed for each agent is stored in `environment/agent` and can be
 reloaded using for example:
 ```bash
-python -m tonic.play --path tonic_data/tensorflow/humanoid-stand/TD3
+python3 -m tonic.play --path tonic_data/tensorflow/humanoid-stand/TD3
 ```
 
 <div align="center">
@@ -176,20 +169,26 @@ The full benchmark plots are available
 
 They can be generated with:
 ```bash
-python -m tonic.plot --baselines all --name benchmark --columns 5
+python3 -m tonic.plot \
+--baselines all \
+--backend agg --columns 7 --font_size 17 --legend_font_size 30 --legend_marker_size 20 \
+--name benchmark
 ```
 
 Or:
 ```bash
-python -m tonic.plot --path tonic_data/tensorflow --name benchmark --columns 5
+python3 -m tonic.plot \
+--path tonic_data/tensorflow \
+--backend agg --columns 7 --font_size 17 --legend_font_size 30 --legend_marker_size 20 \
+--name benchmark
 ```
 
-And a selection can be visualized with:
+And a selection can be generated with:
 ```bash
-python -m tonic.plot \
---path tonic_data/tensorflow/{Ant-v3,AntBulletEnv-v0,BipedalWalker-v3,cheetah-run,HalfCheetah-v3,HalfCheetahBulletEnv-v0,HopperBulletEnv-v0,Humanoid-v3,reacher-hard,walker-walk,Walker2d-v3,Walker2DBulletEnv-v0} \
---name selection \
---columns 4
+python3 -m tonic.plot \
+--path tonic_data/tensorflow/{AntBulletEnv-v0,BipedalWalker-v3,finger-turn_hard,fish-swim,HalfCheetah-v3,HopperBulletEnv-v0,Humanoid-v3,quadruped-walk,swimmer-swimmer15,Walker2d-v3} \
+--backend agg --columns 5 --font_size 20 --legend_font_size 30 --legend_marker_size 20 \
+--name selection
 ```
 
 <div align="center">
@@ -201,8 +200,9 @@ python -m tonic.plot \
 ## Other code bases
 
 Tonic was inspired by a number of other deep RL code bases. In particular,
-OpenAI Baselines and Spinning Up in Deep RL were used as starting points for
-much of this library.
+[OpenAI Baselines](https://github.com/openai/baselines),
+ [Spinning Up in Deep RL](https://github.com/openai/spinningup)
+and [Acme](https://github.com/deepmind/acme).
 
 ## Citing Tonic
 

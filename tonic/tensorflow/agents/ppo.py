@@ -4,12 +4,6 @@ from tonic import logger
 from tonic.tensorflow import agents, updaters
 
 
-def default_actor_updater():
-    return updaters.ClippedRatio(
-        optimizer=tf.keras.optimizers.Adam(lr=3e-4, epsilon=1e-8),
-        ratio_clip=0.2, kl_threshold=0.015, entropy_coeff=0)
-
-
 class PPO(agents.A2C):
     '''Proximal Policy Optimization.
     PPO: https://arxiv.org/pdf/1707.06347.pdf
@@ -18,7 +12,7 @@ class PPO(agents.A2C):
     def __init__(
         self, model=None, replay=None, actor_updater=None, critic_updater=None
     ):
-        actor_updater = actor_updater or default_actor_updater()
+        actor_updater = actor_updater or updaters.ClippedRatio()
         super().__init__(
             model=model, replay=replay, actor_updater=actor_updater,
             critic_updater=critic_updater)

@@ -4,12 +4,6 @@ from tonic import logger  # noqa
 from tonic.torch import agents, updaters
 
 
-def default_actor_updater():
-    return updaters.ClippedRatio(
-        optimizer=lambda params: torch.optim.Adam(params, lr=3e-4),
-        ratio_clip=0.2, kl_threshold=0.015, entropy_coeff=0)
-
-
 class PPO(agents.A2C):
     '''Proximal Policy Optimization.
     PPO: https://arxiv.org/pdf/1707.06347.pdf
@@ -18,7 +12,7 @@ class PPO(agents.A2C):
     def __init__(
         self, model=None, replay=None, actor_updater=None, critic_updater=None
     ):
-        actor_updater = actor_updater or default_actor_updater()
+        actor_updater = actor_updater or updaters.ClippedRatio()
         super().__init__(
             model=model, replay=replay, actor_updater=actor_updater,
             critic_updater=critic_updater)
@@ -38,10 +32,12 @@ class PPO(agents.A2C):
         # Update both the actor and the critic multiple times.
         for batch in self.replay.get(*keys):
             if train_actor:
+                batch = {k: torch.as_tensor(v) for k, v in batch.items()}
                 infos = self._update_actor_critic(**batch)
                 actor_iterations += 1
             else:
-                batch = {k: batch[k] for k in ('observations', 'returns')}
+                batch = {k: torch.as_tensor(batch[k])
+                         for k in ('observations', 'returns')}
                 infos = dict(critic=self.critic_updater(**batch))
             critic_iterations += 1
 

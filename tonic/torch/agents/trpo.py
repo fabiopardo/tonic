@@ -4,14 +4,6 @@ from tonic import logger  # noqa
 from tonic.torch import agents, updaters
 
 
-def default_actor_updater():
-    return updaters.TrustRegionPolicyGradient(
-        optimizer=updaters.ConjugateGradient(
-            constraint_threshold=0.01, damping_coefficient=0.1,
-            conjugate_gradient_steps=10, backtrack_steps=10,
-            backtrack_coefficient=0.8))
-
-
 class TRPO(agents.A2C):
     '''Trust Region Policy Optimization.
     TRPO: https://arxiv.org/pdf/1502.05477.pdf
@@ -20,7 +12,7 @@ class TRPO(agents.A2C):
     def __init__(
         self, model=None, replay=None, actor_updater=None, critic_updater=None
     ):
-        actor_updater = actor_updater or default_actor_updater()
+        actor_updater = actor_updater or updaters.TrustRegionPolicyGradient()
         super().__init__(
             model=model, replay=replay, actor_updater=actor_updater,
             critic_updater=critic_updater)
@@ -61,7 +53,7 @@ class TRPO(agents.A2C):
             self._update()
 
     def _step(self, observations):
-        observations = torch.as_tensor(observations)
+        observations = torch.as_tensor(observations, dtype=torch.float32)
         with torch.no_grad():
             distributions = self.model.actor(observations)
             if hasattr(distributions, 'sample_with_log_prob'):
@@ -69,7 +61,7 @@ class TRPO(agents.A2C):
             else:
                 actions = distributions.sample()
                 log_probs = distributions.log_prob(actions)
-            log_probs = log_probs.sum(axis=-1)
+            log_probs = log_probs.sum(dim=-1)
             locs = distributions.loc
             scales = distributions.stddev
         return actions, log_probs, locs, scales
@@ -81,19 +73,20 @@ class TRPO(agents.A2C):
         values, next_values = values.numpy(), next_values.numpy()
         self.replay.compute_returns(values, next_values)
 
-        actor_keys = ('observations', 'actions', 'log_probs', 'locs',
-                      'scales', 'advantages')
-        actor_batch = self.replay.get_full(*actor_keys)
-        actor_infos = self.actor_updater(**actor_batch)
-        for k, v in actor_infos.items():
+        keys = ('observations', 'actions', 'log_probs', 'locs', 'scales',
+                'advantages')
+        batch = self.replay.get_full(*keys)
+        batch = {k: torch.as_tensor(v) for k, v in batch.items()}
+        infos = self.actor_updater(**batch)
+        for k, v in infos.items():
             logger.store('actor/' + k, v.numpy())
 
-        critic_keys = 'observations', 'returns'
         critic_iterations = 0
-        for critic_batch in self.replay.get(*critic_keys):
-            critic_infos = self.critic_updater(**critic_batch)
+        for batch in self.replay.get('observations', 'returns'):
+            batch = {k: torch.as_tensor(v) for k, v in batch.items()}
+            infos = self.critic_updater(**batch)
             critic_iterations += 1
-            for k, v in critic_infos.items():
+            for k, v in infos.items():
                 logger.store('critic/' + k, v.numpy())
         logger.store('critic/iterations', critic_iterations)
 

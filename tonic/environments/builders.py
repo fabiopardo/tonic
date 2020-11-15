@@ -136,7 +136,7 @@ class ControlSuiteEnvironment(gym.core.Env):
             height=height, width=width, camera_id=camera_id)
 
 
-# Aliases
+# Aliases.
 Gym = gym_environment
 Bullet = bullet_environment
 ControlSuite = control_suite_environment
