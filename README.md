@@ -4,7 +4,10 @@
   <img src="data/images/logo.png" width=40%><br><br>
 </div>
 
-Welcome to the Tonic deep reinforcement learning library.
+Welcome to the Tonic RL library!
+
+Please take a look at [the paper](https://arxiv.org/abs/2011.07537) for details
+and results.
 
 The main design principles are:
 
@@ -206,15 +209,13 @@ and [Acme](https://github.com/deepmind/acme).
 
 ## Citing Tonic
 
-If you use Tonic in your research, please cite:
+If you use Tonic in your research, please cite the [paper](https://arxiv.org/abs/2011.07537):
 
 ```
-@misc{tonic2020,
-  author={Pardo, Fabio},
-  title={Tonic RL Library},
-  year={2020},
-  publisher={GitHub},
-  journal={GitHub repository},
-  howpublished={\url{https://github.com/fabiopardo/tonic}},
+@article{pardo2020tonic,
+    title={Tonic: A Deep Reinforcement Learning Library for Fast Prototyping and Benchmarking},
+    author={Pardo, Fabio},
+    journal={arXiv preprint arXiv:2011.07537},
+    year={2020}
 }
 ```
