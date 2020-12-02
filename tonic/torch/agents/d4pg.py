@@ -14,7 +14,7 @@ def default_model():
             encoder=models.ObservationActionEncoder(),
             torso=models.MLP((256, 256), torch.nn.ReLU),
             # These values are for the control suite with 0.99 discount.
-            head=models.DistributionalValueHead(-150, 150, 51)),
+            head=models.DistributionalValueHead(-150., 150., 51)),
         observation_normalizer=normalizers.MeanStd())
 
 

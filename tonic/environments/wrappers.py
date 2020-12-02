@@ -11,12 +11,8 @@ class ActionRescaler(gym.ActionWrapper):
     def __init__(self, env):
         assert isinstance(env.action_space, gym.spaces.Box)
         super().__init__(env)
-        shape = env.action_space.shape
-        dtype = np.float32
-        low = -np.ones(shape, dtype=dtype)
-        high = -np.ones(shape, dtype=dtype)
-        self.action_space = gym.spaces.Box(
-            low=low, high=high, shape=shape, dtype=dtype)
+        high = np.ones(env.action_space.shape, dtype=np.float32)
+        self.action_space = gym.spaces.Box(low=-high, high=high)
         true_low = env.action_space.low
         true_high = env.action_space.high
         self.bias = (true_high + true_low) / 2

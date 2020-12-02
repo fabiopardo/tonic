@@ -17,7 +17,7 @@ class SquashedMultivariateNormalDiag:
         squashed_samples = tf.tanh(samples)
         log_probs = self._distribution.log_prob(samples)
         log_probs -= tf.reduce_sum(
-            tf.math.log(1 - squashed_samples ** 2 + 1e-6), axis=1)
+            tf.math.log(1 - squashed_samples ** 2 + 1e-6), axis=-1)
         return squashed_samples, log_probs
 
     def sample(self, shape=()):

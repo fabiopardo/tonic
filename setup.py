@@ -11,5 +11,5 @@ setuptools.setup(
     install_requires=[
         'gym', 'matplotlib', 'numpy', 'pandas', 'pyyaml', 'termcolor'],
     license='MIT',
-    python_requires='>=3.5',
+    python_requires='>=3.6',
     keywords=['tonic', 'deep learning', 'reinforcement learning'])
