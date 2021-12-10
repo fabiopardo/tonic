@@ -27,7 +27,7 @@ class MPO(agents.Agent):
         self, model=None, replay=None, actor_updater=None, critic_updater=None
     ):
         self.model = model or default_model()
-        self.replay = replay or replays.Buffer(num_steps=5)
+        self.replay = replay or replays.Buffer(return_steps=5)
         self.actor_updater = actor_updater or \
             updaters.MaximumAPosterioriPolicyOptimization()
         self.critic_updater = critic_updater or updaters.ExpectedSARSA()
@@ -39,7 +39,7 @@ class MPO(agents.Agent):
         self.actor_updater.initialize(self.model, action_space)
         self.critic_updater.initialize(self.model)
 
-    def step(self, observations):
+    def step(self, observations, steps):
         actions = self._step(observations)
         actions = actions.numpy()
 
@@ -49,11 +49,11 @@ class MPO(agents.Agent):
 
         return actions
 
-    def test_step(self, observations):
+    def test_step(self, observations, steps):
         # Sample actions for testing.
         return self._test_step(observations).numpy()
 
-    def update(self, observations, rewards, resets, terminations):
+    def update(self, observations, rewards, resets, terminations, steps):
         # Store the last transitions in the replay.
         self.replay.store(
             observations=self.last_observations, actions=self.last_actions,
@@ -67,8 +67,8 @@ class MPO(agents.Agent):
             self.model.return_normalizer.record(rewards)
 
         # Update the model if the replay is ready.
-        if self.replay.ready():
-            self._update()
+        if self.replay.ready(steps):
+            self._update(steps)
 
     @tf.function
     def _step(self, observations):
@@ -78,12 +78,12 @@ class MPO(agents.Agent):
     def _test_step(self, observations):
         return self.model.actor(observations).mode()
 
-    def _update(self):
+    def _update(self, steps):
         keys = ('observations', 'actions', 'next_observations', 'rewards',
                 'discounts')
 
         # Update both the actor and the critic multiple times.
-        for batch in self.replay.get(*keys):
+        for batch in self.replay.get(*keys, steps=steps):
             infos = self._update_actor_critic(**batch)
 
             for key in infos:

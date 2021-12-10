@@ -38,7 +38,7 @@ class A2C(agents.Agent):
         self.actor_updater.initialize(self.model)
         self.critic_updater.initialize(self.model)
 
-    def step(self, observations):
+    def step(self, observations, steps):
         # Sample actions and get their log-probabilities for training.
         actions, log_probs = self._step(observations)
         actions = actions.numpy()
@@ -51,11 +51,11 @@ class A2C(agents.Agent):
 
         return actions
 
-    def test_step(self, observations):
+    def test_step(self, observations, steps):
         # Sample actions for testing.
         return self._test_step(observations).numpy()
 
-    def update(self, observations, rewards, resets, terminations):
+    def update(self, observations, rewards, resets, terminations, steps):
         # Store the last transitions in the replay.
         self.replay.store(
             observations=self.last_observations, actions=self.last_actions,

@@ -12,7 +12,6 @@ from matplotlib import lines
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import pytest
 
 from tonic import logger
 
@@ -258,8 +257,8 @@ def get_data(
 
 def plot(
     paths, x_axis, y_axis, x_label, y_label, window, interval, show_seeds,
-    columns, x_min, x_max, baselines, baselines_source, name, save_formats,
-    cmap, legend_columns, legend_marker_size, dpi, fig
+    columns, x_min, x_max, y_min, y_max, baselines, baselines_source, name,
+    save_formats, cmap, legend_columns, legend_marker_size, dpi, title, fig
 ):
     '''Plots results from experiments and benchmark data.'''
 
@@ -350,6 +349,7 @@ def plot(
             ax.plot(x, mean, c=color, lw=2, alpha=1)
 
         # Finalize the figures.
+        ax.set_ylim(ymin=y_min, ymax=y_max)
         ax.locator_params(axis='x', nbins=6)
         ax.locator_params(axis='y', tight=True, nbins=6)
         ax.get_yaxis().set_major_formatter(
@@ -368,7 +368,10 @@ def plot(
             y_label = 'Score' if y_axis == 'test/episode_score' else y_axis
         ax.set_xlabel(x_label)
         ax.set_ylabel(y_label)
-        ax.set_title(env)
+        if title:
+            ax.set_title(title)
+        else:
+            ax.set_title(env)
 
     # Add a legend bellow.
     legend_ax = fig.add_subplot(grid[-1:, :])
@@ -428,11 +431,13 @@ if __name__ == '__main__':
     parser.add_argument('--x_label')
     parser.add_argument('--y_label')
     parser.add_argument('--interval', default='bounds')
-    parser.add_argument('--window', type=int, default=5)
+    parser.add_argument('--window', type=int, default=1)
     parser.add_argument('--show_seeds', type=bool, default=False)
     parser.add_argument('--columns', type=int)
     parser.add_argument('--x_min', type=int)
     parser.add_argument('--x_max', type=int)
+    parser.add_argument('--y_min', type=float)
+    parser.add_argument('--y_max', type=float)
     parser.add_argument('--baselines', nargs='+')
     parser.add_argument('--baselines_source', default='tensorflow')
     parser.add_argument('--name')
@@ -446,6 +451,7 @@ if __name__ == '__main__':
     parser.add_argument('--legend_marker_size', type=int, default=10)
     parser.add_argument('--backend', default=None)
     parser.add_argument('--dpi', type=int, default=150)
+    parser.add_argument('--title')
     args = parser.parse_args()
 
     # Backend selection, e.g. agg for non-GUI.
@@ -486,5 +492,6 @@ if __name__ == '__main__':
                     time.sleep(seconds)
                 start_time = time.time()
                 plot(**vars(args), fig=fig)
-    except:
+
+    except Exception:
         pass

@@ -16,10 +16,10 @@ class NormalRandom(agents.Agent):
         self.action_size = action_space.shape[0]
         self.np_random = np.random.RandomState(seed)
 
-    def step(self, observations):
+    def step(self, observations, steps):
         return self._policy(observations)
 
-    def test_step(self, observations):
+    def test_step(self, observations, steps):
         return self._policy(observations)
 
     def _policy(self, observations):
@@ -35,10 +35,10 @@ class UniformRandom(agents.Agent):
         self.action_size = action_space.shape[0]
         self.np_random = np.random.RandomState(seed)
 
-    def step(self, observations):
+    def step(self, observations, steps):
         return self._policy(observations)
 
-    def test_step(self, observations):
+    def test_step(self, observations, steps):
         return self._policy(observations)
 
     def _policy(self, observations):
@@ -62,10 +62,10 @@ class OrnsteinUhlenbeck(agents.Agent):
         self.train_actions = None
         self.test_actions = None
 
-    def step(self, observations):
+    def step(self, observations, steps):
         return self._train_policy(observations)
 
-    def test_step(self, observations):
+    def test_step(self, observations, steps):
         return self._test_policy(observations)
 
     def _train_policy(self, observations):
@@ -90,10 +90,10 @@ class OrnsteinUhlenbeck(agents.Agent):
         next_actions = np.clip(next_actions, -1, 1)
         return next_actions
 
-    def update(self, observations, rewards, resets, terminations):
+    def update(self, observations, rewards, resets, terminations, steps):
         self.train_actions *= (1. - resets)[:, None]
 
-    def test_update(self, observations, rewards, resets, terminations):
+    def test_update(self, observations, rewards, resets, terminations, steps):
         self.test_actions *= (1. - resets)[:, None]
 
 
@@ -106,10 +106,10 @@ class Constant(agents.Agent):
     def initialize(self, observation_space, action_space, seed=None):
         self.action_size = action_space.shape[0]
 
-    def step(self, observations):
+    def step(self, observations, steps):
         return self._policy(observations)
 
-    def test_step(self, observations):
+    def test_step(self, observations, steps):
         return self._policy(observations)
 
     def _policy(self, observations):

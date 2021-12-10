@@ -15,6 +15,7 @@ from .critics import ExpectedSARSA
 from .critics import QRegression
 from .critics import TargetActionNoise
 from .critics import TwinCriticDeterministicQLearning
+from .critics import TwinCriticDistributionalDeterministicQLearning
 from .critics import TwinCriticSoftQLearning
 from .critics import VRegression
 
@@ -28,5 +29,6 @@ __all__ = [
     TrustRegionPolicyGradient, TwinCriticSoftDeterministicPolicyGradient,
     DeterministicQLearning, DistributionalDeterministicQLearning,
     ExpectedSARSA, QRegression, TargetActionNoise,
-    TwinCriticDeterministicQLearning, TwinCriticSoftQLearning, VRegression,
-    ConjugateGradient]
+    TwinCriticDeterministicQLearning,
+    TwinCriticDistributionalDeterministicQLearning, TwinCriticSoftQLearning,
+    VRegression, ConjugateGradient]

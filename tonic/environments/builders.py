@@ -1,9 +1,12 @@
 '''Environment builders for popular domains.'''
 
+import os
+
 import gym.wrappers
 import numpy as np
 
 from tonic import environments
+from tonic.utils import logger
 
 
 def gym_environment(*args, **kwargs):
@@ -32,7 +35,8 @@ def control_suite_environment(*args, **kwargs):
         domain, task = name.split('-')
         environment = ControlSuiteEnvironment(
             domain_name=domain, task_name=task, *args, **kwargs)
-        return gym.wrappers.TimeLimit(environment, 1000)
+        time_limit = int(environment.environment._step_limit)
+        return gym.wrappers.TimeLimit(environment, time_limit)
 
     return build_environment(_builder, *args, **kwargs)
 
@@ -110,18 +114,34 @@ class ControlSuiteEnvironment(gym.core.Env):
         self.environment.task._random = np.random.RandomState(seed)
 
     def step(self, action):
-        time_step = self.environment.step(action)
-        observation = _flatten_observation(time_step.observation)
-        reward = time_step.reward
+        try:
+            time_step = self.environment.step(action)
+            observation = _flatten_observation(time_step.observation)
+            reward = time_step.reward
 
-        # Remove terminations from timeouts.
-        done = time_step.last()
-        if done:
-            done = self.environment.task.get_termination(
-                self.environment.physics)
-            done = done is not None
+            # Remove terminations from timeouts.
+            done = time_step.last()
+            if done:
+                done = self.environment.task.get_termination(
+                    self.environment.physics)
+                done = done is not None
 
-        self.last_time_step = time_step
+            self.last_time_step = time_step
+
+        # In case MuJoCo crashed.
+        except Exception as e:
+            path = logger.get_path()
+            os.makedirs(path, exist_ok=True)
+            save_path = os.path.join(path, 'crashes.txt')
+            error = str(e)
+            with open(save_path, 'a') as file:
+                file.write(error + '\n')
+            logger.error(error)
+            observation = _flatten_observation(self.last_time_step.observation)
+            observation = np.zeros_like(observation)
+            reward = 0.
+            done = True
+
         return observation, reward, done, {}
 
     def reset(self):

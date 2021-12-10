@@ -8,20 +8,20 @@ class Agent(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def step(self, observations):
+    def step(self, observations, steps):
         '''Returns actions during training.'''
         pass
 
-    def update(self, observations, rewards, resets, terminations):
+    def update(self, observations, rewards, resets, terminations, steps):
         '''Informs the agent of the latest transitions during training.'''
         pass
 
     @abc.abstractmethod
-    def test_step(self, observations):
+    def test_step(self, observations, steps):
         '''Returns actions during testing.'''
         pass
 
-    def test_update(self, observations, rewards, resets, terminations):
+    def test_update(self, observations, rewards, resets, terminations, steps):
         '''Informs the agent of the latest transitions during testing.'''
         pass
 

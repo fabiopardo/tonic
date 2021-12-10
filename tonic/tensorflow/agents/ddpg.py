@@ -41,24 +41,22 @@ class DDPG(agents.Agent):
         self.exploration.initialize(self._policy, action_space, seed)
         self.actor_updater.initialize(self.model)
         self.critic_updater.initialize(self.model)
-        self.steps = 0
 
-    def step(self, observations):
+    def step(self, observations, steps):
         # Get actions from the actor and exploration method.
-        actions = self.exploration(observations, self.steps)
+        actions = self.exploration(observations, steps)
 
         # Keep some values for the next update.
         self.last_observations = observations.copy()
         self.last_actions = actions.copy()
-        self.steps += len(observations)
 
         return actions
 
-    def test_step(self, observations):
+    def test_step(self, observations, steps):
         # Greedy actions for testing.
         return self._greedy_actions(observations).numpy()
 
-    def update(self, observations, rewards, resets, terminations):
+    def update(self, observations, rewards, resets, terminations, steps):
         # Store the last transitions in the replay.
         self.replay.store(
             observations=self.last_observations, actions=self.last_actions,
@@ -72,8 +70,8 @@ class DDPG(agents.Agent):
             self.model.return_normalizer.record(rewards)
 
         # Update the model if the replay is ready.
-        if self.replay.ready():
-            self._update()
+        if self.replay.ready(steps):
+            self._update(steps)
 
         self.exploration.update(resets)
 
@@ -84,12 +82,12 @@ class DDPG(agents.Agent):
     def _policy(self, observations):
         return self._greedy_actions(observations).numpy()
 
-    def _update(self):
+    def _update(self, steps):
         keys = ('observations', 'actions', 'next_observations', 'rewards',
                 'discounts')
 
         # Update both the actor and the critic multiple times.
-        for batch in self.replay.get(*keys):
+        for batch in self.replay.get(*keys, steps=steps):
             infos = self._update_actor_critic(**batch)
 
             for key in infos:

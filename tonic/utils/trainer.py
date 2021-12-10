@@ -10,25 +10,17 @@ class Trainer:
     '''Trainer used to train and evaluate an agent on an environment.'''
 
     def __init__(
-        self, steps=int(5e6), epoch_steps=10000, save_steps=500000,
-        test_episodes=5, show_progress=True
+        self, steps=int(1e7), epoch_steps=int(2e4), save_steps=int(5e5),
+        test_episodes=5, show_progress=True, replace_checkpoint=False,
     ):
         self.max_steps = steps
         self.epoch_steps = epoch_steps
         self.save_steps = save_steps
         self.test_episodes = test_episodes
         self.show_progress = show_progress
+        self.replace_checkpoint = replace_checkpoint
 
-    def initialize(self, agent, environment, test_environment=None, seed=None):
-        if seed is not None:
-            environment.initialize(seed=seed)
-        if test_environment and seed is not None:
-            test_environment.initialize(seed=seed + 10000)
-
-        agent.initialize(
-            observation_space=environment.observation_space,
-            action_space=environment.action_space, seed=seed)
-
+    def initialize(self, agent, environment, test_environment=None):
         self.agent = agent
         self.environment = environment
         self.test_environment = test_environment
@@ -42,33 +34,31 @@ class Trainer:
         observations = self.environment.start()
 
         num_workers = len(observations)
-        scores = np.zeros(len(observations))
-        lengths = np.zeros(len(observations), int)
-        steps, epoch_steps, epochs, episodes = 0, 0, 0, 0
-        max_steps = np.ceil(self.max_steps / num_workers)
-        if self.save_steps:
-            save_steps = np.ceil(self.save_steps / num_workers)
-        else:
-            save_steps = None
+        scores = np.zeros(num_workers)
+        lengths = np.zeros(num_workers, int)
+        self.steps, epoch_steps, epochs, episodes = 0, 0, 0, 0
+        steps_since_save = 0
 
         while True:
             # Select actions.
-            actions = self.agent.step(observations)
+            actions = self.agent.step(observations, self.steps)
             assert not np.isnan(actions.sum())
             logger.store('train/action', actions, stats=True)
 
             # Take a step in the environments.
             observations, infos = self.environment.step(actions)
-            self.agent.update(**infos)
+            self.agent.update(**infos, steps=self.steps)
 
             scores += infos['rewards']
             lengths += 1
-            steps += 1
-            epoch_steps += 1
+            self.steps += num_workers
+            epoch_steps += num_workers
+            steps_since_save += num_workers
 
             # Show the progress bar.
             if self.show_progress:
-                logger.show_progress(steps, self.epoch_steps, max_steps)
+                logger.show_progress(
+                    self.steps, self.epoch_steps, self.max_steps)
 
             # Check the finished episodes.
             for i in range(num_workers):
@@ -81,7 +71,7 @@ class Trainer:
                     episodes += 1
 
             # End of the epoch.
-            if epoch_steps == self.epoch_steps:
+            if epoch_steps >= self.epoch_steps:
                 # Evaluate the agent on the test environment.
                 if self.test_environment:
                     self._test()
@@ -95,21 +85,28 @@ class Trainer:
                 logger.store('train/epochs', epochs)
                 logger.store('train/seconds', current_time - start_time)
                 logger.store('train/epoch_seconds', epoch_time)
-                logger.store('train/epoch_steps', epoch_steps * num_workers)
-                logger.store('train/steps', steps * num_workers)
-                logger.store('train/steps_per_second', sps * num_workers)
+                logger.store('train/epoch_steps', epoch_steps)
+                logger.store('train/steps', self.steps)
+                logger.store('train/worker_steps', self.steps // num_workers)
+                logger.store('train/steps_per_second', sps)
                 logger.dump()
                 last_epoch_time = time.time()
                 epoch_steps = 0
 
             # End of training.
-            stop_training = steps >= max_steps
+            stop_training = self.steps >= self.max_steps
 
             # Save a checkpoint.
-            if stop_training or (save_steps and steps % save_steps == 0):
-                save_name = f'checkpoints/step_{steps * num_workers}'
-                save_path = os.path.join(logger.get_path(), save_name)
+            if stop_training or steps_since_save >= self.save_steps:
+                path = os.path.join(logger.get_path(), 'checkpoints')
+                if os.path.isdir(path) and self.replace_checkpoint:
+                    for file in os.listdir(path):
+                        if file.startswith('step_'):
+                            os.remove(os.path.join(path, file))
+                checkpoint_name = f'step_{self.steps}'
+                save_path = os.path.join(path, checkpoint_name)
                 self.agent.save(save_path)
+                steps_since_save = self.steps % self.save_steps
 
             if stop_training:
                 break
@@ -128,14 +125,15 @@ class Trainer:
 
             while True:
                 # Select an action.
-                actions = self.agent.test_step(self.test_observations)
+                actions = self.agent.test_step(
+                    self.test_observations, self.steps)
                 assert not np.isnan(actions.sum())
                 logger.store('test/action', actions, stats=True)
 
                 # Take a step in the environment.
                 self.test_observations, infos = self.test_environment.step(
                     actions)
-                self.agent.test_update(**infos)
+                self.agent.test_update(**infos, steps=self.steps)
 
                 score += infos['rewards'][0]
                 length += 1

@@ -5,7 +5,7 @@ setuptools.setup(
     name='tonic',
     description='Tonic RL Library',
     url='https://github.com/fabiopardo/tonic',
-    version='0.2.0',
+    version='0.3.0',
     author='Fabio Pardo',
     author_email='f.pardo@imperial.ac.uk',
     install_requires=[

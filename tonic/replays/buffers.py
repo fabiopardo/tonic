@@ -6,12 +6,12 @@ class Buffer:
     and using n-step returns.'''
 
     def __init__(
-        self, size=int(1e6), num_steps=1, batch_iterations=50, batch_size=100,
-        discount_factor=0.99, steps_before_batches=int(1e4),
+        self, size=int(1e6), return_steps=1, batch_iterations=50,
+        batch_size=100, discount_factor=0.99, steps_before_batches=int(1e4),
         steps_between_batches=50
     ):
-        self.max_size = size
-        self.num_steps = num_steps
+        self.full_max_size = size
+        self.return_steps = return_steps
         self.batch_iterations = batch_iterations
         self.batch_size = batch_size
         self.discount_factor = discount_factor
@@ -23,12 +23,12 @@ class Buffer:
         self.buffers = None
         self.index = 0
         self.size = 0
-        self.steps = 0
+        self.last_steps = 0
 
-    def ready(self):
-        if self.steps < self.steps_before_batches:
+    def ready(self, steps):
+        if steps < self.steps_before_batches:
             return False
-        return self.steps % self.steps_between_batches == 0
+        return (steps - self.last_steps) >= self.steps_between_batches
 
     def store(self, **kwargs):
         if 'terminations' in kwargs:
@@ -38,6 +38,7 @@ class Buffer:
         # Create the named buffers.
         if self.buffers is None:
             self.num_workers = len(list(kwargs.values())[0])
+            self.max_size = self.full_max_size // self.num_workers
             self.buffers = {}
             for key, val in kwargs.items():
                 shape = (self.max_size,) + np.array(val).shape
@@ -48,12 +49,11 @@ class Buffer:
             self.buffers[key][self.index] = val
 
         # Accumulate values for n-step returns.
-        if self.num_steps > 1:
+        if self.return_steps > 1:
             self.accumulate_n_steps(kwargs)
 
         self.index = (self.index + 1) % self.max_size
         self.size = min(self.size + 1, self.max_size)
-        self.steps += 1
 
     def accumulate_n_steps(self, kwargs):
         rewards = kwargs['rewards']
@@ -61,7 +61,7 @@ class Buffer:
         discounts = kwargs['discounts']
         masks = np.ones(self.num_workers, np.float32)
 
-        for i in range(min(self.size, self.num_steps - 1)):
+        for i in range(min(self.size, self.return_steps - 1)):
             index = (self.index - i - 1) % self.max_size
             masks *= (1 - self.buffers['resets'][index])
             new_rewards = (self.buffers['rewards'][index] +
@@ -78,7 +78,7 @@ class Buffer:
                 self.buffers['next_observations'][index] +
                 masks[:, None] * next_observations)
 
-    def get(self, *keys):
+    def get(self, *keys, steps):
         '''Get batches from named buffers.'''
 
         for _ in range(self.batch_iterations):
@@ -87,3 +87,5 @@ class Buffer:
             rows = indices // self.num_workers
             columns = indices % self.num_workers
             yield {k: self.buffers[k][rows, columns] for k in keys}
+
+        self.last_steps = steps

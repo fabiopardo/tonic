@@ -35,10 +35,10 @@ class TD3(agents.DDPG):
         self.delay_steps = delay_steps
         self.model.critic = self.model.critic_1
 
-    def _update(self):
+    def _update(self, steps):
         keys = ('observations', 'actions', 'next_observations', 'rewards',
                 'discounts')
-        for i, batch in enumerate(self.replay.get(*keys)):
+        for i, batch in enumerate(self.replay.get(*keys, steps=steps)):
             batch = {k: torch.as_tensor(v) for k, v in batch.items()}
             if (i + 1) % self.delay_steps == 0:
                 infos = self._update_actor_critic(**batch)

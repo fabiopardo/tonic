@@ -17,7 +17,7 @@ class TRPO(agents.A2C):
             model=model, replay=replay, actor_updater=actor_updater,
             critic_updater=critic_updater)
 
-    def step(self, observations):
+    def step(self, observations, steps):
         # Sample actions and get their log-probabilities for training.
         actions, log_probs, locs, scales = self._step(observations)
         actions = actions.numpy()
@@ -34,7 +34,7 @@ class TRPO(agents.A2C):
 
         return actions
 
-    def update(self, observations, rewards, resets, terminations):
+    def update(self, observations, rewards, resets, terminations, steps):
         # Store the last transitions in the replay.
         self.replay.store(
             observations=self.last_observations, actions=self.last_actions,
