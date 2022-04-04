@@ -3,10 +3,6 @@
 import os
 
 import gym.wrappers
-from gym_unity.envs import UnityToGymWrapper
-from mlagents_envs.environment import UnityEnvironment
-from mlagents_envs.exception import UnityWorkerInUseException
-
 import numpy as np
 
 from tonic import environments
@@ -25,7 +21,9 @@ def gym_environment(*args, **kwargs):
 
 def unity_environment(*args, **kwargs):
     '''Returns a wrapped Unity environment.'''
-
+    from gym_unity.envs import UnityToGymWrapper
+    from mlagents_envs.environment import UnityEnvironment
+    from mlagents_envs.exception import UnityWorkerInUseException
     def _builder(name, start_id, *args, **kwargs):
         # Try connecting to the Unity3D game instance.
         global worker_index
