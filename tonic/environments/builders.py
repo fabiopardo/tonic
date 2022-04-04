@@ -9,6 +9,8 @@ from tonic import environments
 from tonic.utils import logger
 
 
+worker_index = 0
+
 def gym_environment(*args, **kwargs):
     '''Returns a wrapped Gym environment.'''
 
@@ -17,6 +19,32 @@ def gym_environment(*args, **kwargs):
 
     return build_environment(_builder, *args, **kwargs)
 
+def unity_environment(*args, **kwargs):
+    '''Returns a wrapped Unity environment.'''
+    from gym_unity.envs import UnityToGymWrapper
+    from mlagents_envs.environment import UnityEnvironment
+    from mlagents_envs.exception import UnityWorkerInUseException
+    def _builder(name, start_id, *args, **kwargs):
+        # Try connecting to the Unity3D game instance.
+        global worker_index
+        worker_index = int(start_id)
+        while True:
+            try:
+                unity_env = UnityEnvironment(name,
+                                no_graphics=True,
+                                worker_id=worker_index)
+            except UnityWorkerInUseException:
+                import random
+                worker_index += random.randint(0, 1000)
+            else:
+                break
+
+        print("worker_index", worker_index, flush=True)
+        environment = UnityToGymWrapper(unity_env)
+        time_limit = int(1000)  # The time limit is not yet visible from the env
+        return gym.wrappers.TimeLimit(environment, time_limit)
+
+    return build_environment(_builder, *args, **kwargs)
 
 def bullet_environment(*args, **kwargs):
     '''Returns a wrapped PyBullet environment.'''
@@ -160,3 +188,4 @@ class ControlSuiteEnvironment(gym.core.Env):
 Gym = gym_environment
 Bullet = bullet_environment
 ControlSuite = control_suite_environment
+Unity = unity_environment
