@@ -1,7 +1,6 @@
 '''Builders for distributed training.'''
 
 import multiprocessing
-
 import numpy as np
 
 
@@ -97,6 +96,7 @@ class Parallel:
         dummy_environment = self.environment_builder()
         self.observation_space = dummy_environment.observation_space
         self.action_space = dummy_environment.action_space
+        dummy_environment.close()
         del dummy_environment
         self.started = False
 
@@ -159,6 +159,7 @@ def distribute(environment_builder, worker_groups=1, workers_per_group=1):
     '''Distributes workers over parallel and sequential groups.'''
     dummy_environment = environment_builder()
     max_episode_steps = dummy_environment.max_episode_steps
+    dummy_environment.close()
     del dummy_environment
 
     if worker_groups < 2:
