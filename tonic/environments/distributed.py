@@ -18,7 +18,11 @@ class Sequential:
     def initialize(self, seed):
         for i, environment in enumerate(self.environments):
             environment.seed(seed + i)
-
+            
+    def reset(self):
+        '''Fixing common error: AttributeError: Sequential object has no attribute reset'''
+        return self.start()
+        
     def start(self):
         '''Used once to get the initial observations.'''
         observations = [env.reset() for env in self.environments]
